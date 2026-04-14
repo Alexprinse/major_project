@@ -1,0 +1,7 @@
+numpy>=1.26
+opencv-python>=4.9
+carla>=0.9.15
+PyQt5>=5.15
+pyqtgraph>=0.13
+shapely>=2.0
+networkx>=3.0

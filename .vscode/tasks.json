@@ -1,0 +1,56 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run drowsiness demo",
+			"type": "shell",
+			"command": "env",
+			"args": [
+				"PYTHONPATH=src",
+				"python3",
+				"-m",
+				"drowsiness_detector.app",
+				"--demo"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Run detector tests",
+			"type": "shell",
+			"command": "env",
+			"args": [
+				"PYTHONPATH=src",
+				"python3",
+				"-m",
+				"unittest",
+				"discover",
+				"-s",
+				"tests"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Run CARLA webcam monitor",
+			"type": "shell",
+			"command": "env",
+			"args": [
+				"PYTHONPATH=src",
+				"python3",
+				"-m",
+				"drowsiness_detector.app",
+				"--camera",
+				"--carla",
+				"--spawn-vehicle-if-missing",
+				"--carla-role-name",
+				"hero"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}

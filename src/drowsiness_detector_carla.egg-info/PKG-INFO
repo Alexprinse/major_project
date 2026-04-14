@@ -1,0 +1,116 @@
+Metadata-Version: 2.4
+Name: drowsiness-detector-carla
+Version: 0.1.0
+Summary: Drowsiness detection and CARLA safety controller scaffold
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: numpy>=1.26
+Requires-Dist: opencv-python>=4.9
+Requires-Dist: carla>=0.9.15
+Requires-Dist: pygame>=2.5
+Requires-Dist: shapely>=2.0
+
+# Drowsiness Detection + CARLA Safety Controller
+
+This workspace is a starter scaffold for a drowsiness detection system that can:
+
+- detect drowsiness from video or sensor-derived signals,
+- trigger an audible alert when the driver appears sleepy,
+- request a safe pull-over / park maneuver in CARLA if drowsiness continues.
+
+The current codebase is a clean starting point with optional dependencies and placeholder control flow so it can be extended with a real computer-vision model or a CARLA vehicle controller.
+
+## Project Layout
+
+- `src/drowsiness_detector/detector.py` - drowsiness scoring and state tracking
+- `src/drowsiness_detector/alerts.py` - beep / alert handling
+- `src/drowsiness_detector/carla_controller.py` - CARLA integration hooks
+- `src/drowsiness_detector/app.py` - example orchestration entry point
+- `requirements.txt` - runtime dependencies
+
+## Setup
+
+1. Create a Python environment.
+2. Install the package in editable mode:
+
+```bash
+python3 -m pip install -e .
+```
+
+If you prefer the flat requirements file, you can also install from:
+
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+## Run the demo
+
+The current entry point is a safe simulation scaffold that you can extend with your model and CARLA bridge:
+
+```bash
+PYTHONPATH=src python3 -m drowsiness_detector.app --demo
+```
+
+## Run with CARLA
+
+Start CARLA first, make sure your ego vehicle has a role name such as `hero`, then run:
+
+```bash
+PYTHONPATH=src python3 -m drowsiness_detector.app --camera --carla --carla-host 127.0.0.1 --carla-port 2000 --carla-role-name hero
+```
+
+If CARLA has no ego vehicle yet, spawn one automatically and open both windows (CARLA driver view + webcam drowsiness view):
+
+```bash
+PYTHONPATH=src python3 -m drowsiness_detector.app --camera --carla --spawn-vehicle-if-missing --carla-role-name hero
+```
+
+Dashboard layout in this mode:
+
+- Center/left: CARLA driver view
+- Top-right: webcam eye/drowsiness feed
+- Right panel: speed monitor, vehicle mode, driver state, transmission, weather, slowdown status
+
+Keyboard controls in the CARLA window:
+
+- `W`: throttle
+- `S`: brake
+- `A` / `D`: steer
+- `SPACE`: handbrake
+- `Q` or `R`: toggle reverse
+- `P`: toggle CARLA autopilot
+- `TAB`: cycle camera position
+- `C`: cycle weather
+- `SHIFT+C`: cycle weather backwards
+- `M`: toggle manual transmission
+- `,` / `.`: gear down / gear up (manual transmission mode)
+- `ESC`: quit dashboard
+
+Drowsiness safety behavior in CARLA mode:
+
+- Short blinks are filtered: low-eye signal must persist for about 2.5 seconds before `DROWSY`.
+- Driver state `DROWSY` or `SLEEPY` automatically applies gentle deceleration.
+- If `SLEEPY` persists to pull-over threshold, the system attempts autonomous roadside parking using CARLA routing.
+- Vehicle speed is shown live in both the CARLA window and webcam overlay.
+
+Parking notes:
+
+- Full roadside routing uses CARLA `BasicAgent` (requires `shapely`).
+- If agent dependencies are unavailable, the system uses a fallback right-biased deceleration maneuver and then stops.
+
+When the detector reaches the pull-over threshold, it will apply a hard stop to the attached CARLA vehicle. This is the first integration step; you can extend it later to steer into a shoulder or parking bay.
+
+## Test the detector
+
+Run the unit tests that cover the drowsiness state machine and pull-over timing:
+
+```bash
+PYTHONPATH=src python3 -m unittest discover -s tests
+```
+
+## Next implementation steps
+
+1. Plug in a real face/eye detection pipeline.
+2. Calibrate the drowsiness thresholds for your dataset.
+3. Connect `CarlaSafetyController` to an actual CARLA actor.
+4. Map the alert logic to your vehicle and simulator setup.
