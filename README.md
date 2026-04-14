@@ -1,221 +1,232 @@
-## Troubleshooting
+# Drowsiness Detector + CARLA Safety Dashboard
 
-**Camera View Not Changing Responsively:**
-- Camera view switching operates independently of lane detection
-- If TAB/Y keys feel unresponsive, the lane detection computation may be blocking the event loop
-- Press `L` to disable lane detection overlay (improves responsiveness immediately)
-- View switching still works with lane detection on, but may have slight lag
-- Full dashboard restart: Press `ESC` to exit, then rerun the app
+Driver drowsiness monitoring with an optional CARLA-integrated safety controller and a tabbed PyQt5 dashboard (webcam + simulator view, live analytics, routing, and “park nearby” safety behavior).
 
-**Red Line Detection False Positives:**
-- False positives occur when non-red UI elements or scene objects trigger the HSV red mask
-- Use the debug visualization tool (shown above) to see preprocessing steps in real-time
-- Adjust HSV thresholds in `src/drowsiness_detector/lane_detection.py` > `_detect_red_borders()` method:
-	- Increase saturation lower bound (50 → 80 or higher) to skip dull colors
-	- Adjust Hough line detection parameters (`threshold`, `minLineLength`, `maxLineGap`)
-	- Stricter thresholds may reduce false positives but might miss real red lines
-- Temporarily disable with `L` key if needed for specific driving scenes
-- Red line detection is optional; you can rely solely on white lane detection by keeping lane mode on but ignoring red detection output
+This repository is intentionally built as a research/prototype-friendly scaffold:
 
-## Test the detector
-# Drowsiness Detection + CARLA Safety Controller
+- The **drowsiness state machine** is simple and easy to replace with a production model.
+- The **dashboard** provides a real-time UI for monitoring and CARLA integration.
+- The **CARLA controller** includes practical building blocks (sync mode, sensors, routing, shoulder parking helpers).
 
-This workspace is a starter scaffold for a drowsiness detection system that can:
+## Key Features
 
-- detect drowsiness from video or sensor-derived signals,
-- trigger an audible alert when the driver appears sleepy,
-- request a safe pull-over / park maneuver in CARLA if drowsiness continues.
+### Drowsiness detection
 
-The current codebase is a clean starting point with optional dependencies and placeholder control flow so it can be extended with a real computer-vision model or a CARLA vehicle controller.
+- **Drowsiness states**: `ALERT` → `DROWSY` → `SLEEPY`.
+- **Two webcam backends**:
+  - **Haar**: OpenCV Haar cascades (face + eyes) + a lightweight EAR-like heuristic.
+  - **MediaPipe**: face mesh landmarks with smoothed EAR, plus yawn + head-nod heuristics.
+- **Configurable thresholds** via `DrowsinessConfig` in `src/drowsiness_detector/config.py`.
+
+### Alerts
+
+- Cross-platform audible alert with layered fallbacks:
+  - Windows `winsound`,
+  - Linux `aplay` / `paplay` / `canberra-gtk-play`,
+  - Qt `QApplication.beep()`,
+  - terminal bell.
+
+### CARLA safety controller (optional)
+
+- Connects to CARLA, can **attach to an existing ego vehicle** by `role_name` or **spawn one**.
+- Forces CARLA into **synchronous mode** (configurable fixed delta seconds).
+- Spawns a **vehicle-mounted camera** with support for:
+  - **RGB** camera (`sensor.camera.rgb`)
+  - **Cosmos visualization** (`sensor.camera.cosmos_visualization`) with automatic fallback to RGB if the sensor isn’t available.
+- Route planning + route following when CARLA agent modules are available.
+- Safety actions:
+  - applies **gentle slowdown** when `DROWSY`/`SLEEPY`,
+  - requests a **safe stop** (“pull over”) when the detector hits its pull-over threshold,
+  - can attempt **“park nearby”** shoulder-lane parking via route planning (with fallback to safe stop).
+
+### Tabbed PyQt5 dashboard
+
+- A single window with multiple tabs:
+  - **Dashboard**: CARLA view + webcam view + minimap + live status chips.
+  - **Monitoring**: annotated webcam view and EAR plot.
+  - **Analytics**: speed/steer/throttle/brake time series.
+  - **Parking**: dedicated parking camera feed + parking state timeline.
+  - **Map**: click-to-set destination + plan/start/stop route controls.
+- **Sleepy decision overlay**: after sustained `SLEEPY`, prompts “Continue to Destination” vs “Park Nearby”; auto-parks after timeout.
+- Built-in **traffic generator toggle** (starts/stops CARLA’s `PythonAPI/examples/generate_traffic.py` when available).
+- Keyboard controls for driving, camera switching, weather cycling, HUD/help toggles.
 
 ## Project Layout
 
-- `src/drowsiness_detector/detector.py` - drowsiness scoring and state tracking
-- `src/drowsiness_detector/alerts.py` - beep / alert handling
-- `src/drowsiness_detector/carla_controller.py` - CARLA integration hooks
-- `src/drowsiness_detector/app.py` - example orchestration entry point
-- `requirements.txt` - runtime dependencies
+- `src/drowsiness_detector/app.py`: CLI entrypoint (`--demo`, `--camera`, `--carla`)
+- `src/drowsiness_detector/qt_dashboard.py`: PyQt5 dashboard runtime
+- `src/drowsiness_detector/detector.py`: drowsiness state machine scaffold
+- `src/drowsiness_detector/mediapipe_system.py`: MediaPipe-based drowsiness pipeline
+- `src/drowsiness_detector/carla_controller.py`: CARLA connection, sensors, routing, safety maneuvers
+- `src/drowsiness_detector/alerts.py`: audio/beep alert controller
+- `tests/`: unit tests (state machine + controller behavior)
 
-## Setup
+## Requirements
 
-1. Create a Python environment.
-2. Install the package in editable mode:
+- Python **3.10+**
+- Runtime packages are defined in `pyproject.toml` / `requirements.txt`.
+
+Notes about CARLA:
+
+- Many CARLA installs provide the Python API from the simulator distribution. If `import carla` fails, install/enable the CARLA Python API that matches your CARLA version.
+- Some features (routing/agents/traffic generation) expect CARLA’s `PythonAPI/` folder to be present.
+
+## Install
+
+Create and activate a virtual environment, then install:
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
+
+python3 -m pip install -U pip
 python3 -m pip install -e .
 ```
 
-If you prefer the flat requirements file, you can also install from:
+Alternatively:
 
 ```bash
 python3 -m pip install -r requirements.txt
 ```
 
-## Run the demo
+## Quickstart
 
-The current entry point is a safe simulation scaffold that you can extend with your model and CARLA bridge:
+This project exposes its CLI via `drowsiness_detector.app` (and `python -m drowsiness_detector` delegates to it).
 
-```bash
-PYTHONPATH=src python3 -m drowsiness_detector.app --demo
-```
-
-## Run with CARLA
-
-Start CARLA first, make sure your ego vehicle has a role name such as `hero`, then run:
+### 1) Run the built-in demo stream
 
 ```bash
-PYTHONPATH=src python3 -m drowsiness_detector.app --camera --carla --carla-host 127.0.0.1 --carla-port 2000 --carla-role-name hero
+python3 -m drowsiness_detector --demo
 ```
 
-If CARLA has no ego vehicle yet, spawn one automatically and open both windows (CARLA driver view + webcam drowsiness view):
+### 2) Run the webcam dashboard (no CARLA)
 
 ```bash
-PYTHONPATH=src python3 -m drowsiness_detector.app --camera --carla --spawn-vehicle-if-missing --carla-role-name hero
+python3 -m drowsiness_detector --camera --camera-index 0
 ```
 
-To enable lane detection overlay on the CARLA camera view:
+Switch to the MediaPipe backend:
 
 ```bash
-PYTHONPATH=src python3 -m drowsiness_detector.app --camera --carla --spawn-vehicle-if-missing --carla-role-name hero --lane-detection
+python3 -m drowsiness_detector --camera --drowsiness-backend mediapipe
 ```
 
-To start directly with Cosmos control visualization camera mode (if available in your CARLA build):
+### 3) Run webcam + CARLA dashboard
+
+Start CARLA first, then:
 
 ```bash
-PYTHONPATH=src python3 -m drowsiness_detector.app --camera --carla --spawn-vehicle-if-missing --carla-role-name hero --carla-camera-mode cosmos --lane-detection
+python3 -m drowsiness_detector \
+  --camera \
+  --carla \
+  --carla-host 127.0.0.1 \
+  --carla-port 2000 \
+  --carla-role-name hero
 ```
 
-**Note:** Cosmos visualization includes **red border detection** (detects footpath/curb lines visible in Cosmos rendering). The dashboard displays detected red border position (LEFT, CENTER, RIGHT) in telemetry.
-
-To run parking tuning mode with Cosmos visualization and lane detection:
+If there is no ego vehicle yet, spawn one automatically:
 
 ```bash
-PYTHONPATH=src python3 -m drowsiness_detector.app --parking-tuning --spawn-vehicle-if-missing --carla-role-name hero
+python3 -m drowsiness_detector \
+  --camera \
+  --carla \
+  --spawn-vehicle-if-missing \
+  --carla-role-name hero
 ```
 
-In parking tuning mode:
-- Cosmos visualization displays control/debug data overlaid on CARLA view
-- Lane detection is always enabled and shows steering hints
-- Manual controls let you test steering/throttle before running autonomous parking
-- **SPACE** to trigger autonomous roadside parking
-- Telemetry panel shows parking status, steps executed, speed, lane offset, steering input
-
-Dashboard layout in this mode:
-
-- Center/left: CARLA driver view (primary tab, starts at Front view)
-- Top-right: webcam eye/drowsiness feed
-- Right panels: speed monitor, vehicle mode, driver state, transmission, weather, slowdown status, camera label
-- The active CARLA camera view name is shown in the header and on the road-view panel.
-- **Tabbed camera system**: Press `TAB` to cycle through camera views (primary tab with Front view as default), or press `Y` to jump to HIGH CHASE view (secondary tab for high elevation rear-view).
-- Press `F11` to toggle fullscreen and return to windowed mode. The dashboard will reflow to the current window size.
-- Use the mouse wheel over the telemetry panel to scroll detailed vehicle and safety information.
-- `TAB` now cycles through more than three camera views, including front-left, front-right, rear-left, rear-right, and high chase.
-
-Keyboard controls in the CARLA window:
-
-- `W`: throttle
-- `S`: brake
-- `A` / `D`: steer
-- `SPACE`: handbrake
-- `Q` or `R`: toggle reverse
-- `P`: toggle CARLA autopilot
-- `TAB`: next camera view (cycles through all 8 views, primary tab)
-- `SHIFT+TAB`: previous camera view
-- `1` to `8`: jump directly to a camera view
-- `Y`: switch to HIGH CHASE view (secondary tab)
-- `V`: toggle camera mode between RGB and Cosmos visualization
-- If `sensor.camera.cosmos_visualization` is unavailable, mode falls back to RGB automatically
-- `C`: cycle weather
-- `SHIFT+C`: cycle weather backwards
-- `M`: toggle manual transmission
-- `L`: toggle lane detection overlay on CARLA view
-- `,` / `.`: gear down / gear up (manual transmission mode)
-- `ESC`: quit dashboard
-
-Drowsiness safety behavior in CARLA mode:
-
-- Short blinks are filtered: low-eye signal must persist for about 2.5 seconds before `DROWSY`.
-- Driver state `DROWSY` or `SLEEPY` automatically applies gentle deceleration.
-- If `SLEEPY` persists to pull-over threshold, the system attempts autonomous roadside parking using CARLA routing.
-- Vehicle speed is shown live in both the CARLA window and webcam overlay.
-
-Parking notes:
-
-- Full roadside routing uses CARLA `BasicAgent` (requires `shapely`).
-- If agent dependencies are unavailable, the system uses a fallback right-biased deceleration maneuver and then stops.
-
-When the detector reaches the pull-over threshold, it will apply a hard stop to the attached CARLA vehicle. This is the first integration step; you can extend it later to steer into a shoulder or parking bay.
-
-## Standalone Lane Detection
-
-Run the lane detection visualization by itself before integrating it into the CARLA dashboard:
+Enable Cosmos visualization when available:
 
 ```bash
-PYTHONPATH=src python3 -m drowsiness_detector.lane_detection --source 0
+python3 -m drowsiness_detector \
+  --camera \
+  --carla \
+  --spawn-vehicle-if-missing \
+  --carla-role-name hero \
+  --carla-camera-mode cosmos
 ```
 
-Use a video file instead of a webcam by passing its path to `--source`. The lane demo shows lane lines, lane center, vehicle center, and steering hints on the video frame.
+## CLI Reference
 
-Lane detection also includes **red border/footpath detection** (Cosmos visualization) which:
-- Detects red lines (footpath/curb boundaries) in the Cosmos control visualization
-- Automatically uses detected red lines as lane left/right boundaries
-- Calculates lane width and verifies it's larger than the vehicle width
-- Shows lane center and vehicle offset for parking guidance
-- Displays detection status in dashboard telemetry
+Main modes:
 
-## Debug Red Line Detection
+- `--demo`: run a synthetic demo stream through the detector
+- `--camera`: start the PyQt5 webcam dashboard
+- `--carla`: connect the dashboard to CARLA
 
-If red line detection is not working or giving false positives, use the debug visualization tool to see all preprocessing steps:
+Common flags:
+
+- `--camera-index 0`: webcam device index
+- `--drowsiness-backend {haar,mediapipe}`: webcam backend
+- `--carla-host`, `--carla-port`: CARLA connection
+- `--carla-role-name hero`: attach to a vehicle with this role name
+- `--spawn-vehicle-if-missing`: spawn an ego vehicle if none exist
+- `--carla-map Town05`: load a specific CARLA map
+- `--fixed-delta-seconds 0.05`: synchronous time step
+- `--carla-camera-mode {rgb,cosmos}`: camera sensor mode
+- `--carla-view-width/--carla-view-height`: CARLA preview resolution
+- `--carla-view-index`: initial camera transform index
+- `--log-level DEBUG`: logging verbosity (or set `LOG_LEVEL`)
+
+## Dashboard Controls (CARLA mode)
+
+The dashboard supports keyboard input when a CARLA vehicle is attached:
+
+- Drive: `W/A/S/D` or arrow keys
+- Brake: `S` / Down arrow
+- Hand brake: `SPACE`
+- Toggle route autopilot: `P` (requires a destination in the Map tab)
+- Camera view: `TAB` next, `SHIFT+TAB` previous, `1`–`9` jump to view slot
+- Secondary view shortcut: `Y` (high chase)
+- Reverse: `Q`
+- Manual transmission: `M`, then `,` / `.` for gear down/up
+- Weather cycle: `C` (forward), `SHIFT+C` (backward)
+- Lights cycle: `L` (position → low beam → fog → off)
+- Toggle HUD: `F1`
+- Toggle help: `H` or `/`
+- Fullscreen: `F11`
+- Quit: `ESC`
+
+## Safety Behavior (CARLA mode)
+
+When a CARLA vehicle is attached:
+
+- `DROWSY`/`SLEEPY` applies a **slowdown** request via the controller.
+- Sustained `SLEEPY` triggers a **decision overlay**:
+  - “Continue to Destination” keeps/starts route following if a destination is set.
+  - “Park Nearby” attempts to find a shoulder/parking lane segment and park via routing.
+  - If the decision times out, it defaults to “Park Nearby”.
+- If parking/routing fails, the system falls back to requesting a **safe stop**.
+
+## Running Tests
 
 ```bash
-# Visualize with webcam
-PYTHONPATH=src python3 -m drowsiness_detector.red_line_debug --camera-index 0
-
-# Visualize with CARLA Cosmos camera
-PYTHONPATH=src python3 -m drowsiness_detector.red_line_debug --carla --spawn-vehicle-if-missing --carla-role-name hero
+python3 -m unittest discover -s tests
 ```
 
-This displays a 2x2 grid:
-- **Top-left**: Original frame
-- **Top-right**: Red mask (HSV color space filtering)
-- **Bottom-left**: After morphological operations (cleanup)
-- **Bottom-right**: Canny edges (what gets sent to line detection)
+## Troubleshooting
 
-**Troubleshooting False Detection:**
+### `PyQt5` / Qt plugin errors (Linux)
 
-**Disabling Red Line Detection Temporarily:**
-**Recent Improvements to Reduce False Positives:**
-- The detection system was improved with stricter thresholds to minimize false detections:
-	- **HSV saturation** increased from 50 to 80 (now skips dull/washed-out colors)
-	- **Red pixel ratio check**: scenes with <1% red content are filtered out immediately
-	- **Hough threshold** increased from 30 to 50 (requires stronger edge clusters)
-	- **Minimum line length** increased from 50 to 80 pixels (longer boundaries only)
-	- **Vertical line filtering**: lines must be lane-like (slope > 0.5), not horizontal UI elements
-	- **Position validation**: confirmed left line is left of right line (prevents invalid pairs)
-- These changes should significantly reduce false positives in Cosmos visualization
+If Qt can’t find its platform plugins, ensure your environment can locate them. The dashboard attempts to set `QT_QPA_PLATFORM_PLUGIN_PATH` automatically, but system installs can vary.
 
-**Troubleshooting False Detection:**
-- If red mask shows unwanted colors, adjust HSV saturation ranges (increase lower bound to ~100)
-- If Canny edges are too noisy, increase Canny thresholds
-- If lines aren't detected, you need longer continuous red segments in your scene
-- Press `L` in dashboard to toggle lane detection off if it's interfering
+### No webcam frames
 
-**Disabling Red Line Detection Temporarily:**
-- The debug tool lets you assess whether to enable/disable in your scene
-- Red detection can be toggled by temporarily disabling lane detection (`L` key in dashboard)
-- Full red line thresholds are in `src/drowsiness_detector/lane_detection.py` > `_detect_red_borders()`
+- Try a different `--camera-index`.
+- On Linux, check device permissions for `/dev/video*`.
 
-## Test the detector
+### CARLA connects but you see no video
 
-Run the unit tests that cover the drowsiness state machine and pull-over timing:
+- Ensure the vehicle is attached/spawned and sensors are allowed by your CARLA build.
+- If Cosmos sensor isn’t available, the app automatically falls back to RGB.
 
-```bash
-PYTHONPATH=src python3 -m unittest discover -s tests
-```
+### Route/parking features unavailable
 
-## Next implementation steps
+Some routing features require CARLA agent modules (e.g., `BasicAgent`) and a CARLA `PythonAPI/` checkout.
 
-1. Plug in a real face/eye detection pipeline.
-2. Calibrate the drowsiness thresholds for your dataset.
-3. Connect `CarlaSafetyController` to an actual CARLA actor.
-4. Map the alert logic to your vehicle and simulator setup.
+## VS Code Tasks
+
+This workspace includes convenient tasks:
+
+- “Run drowsiness demo”
+- “Run CARLA webcam monitor”
+- “Run detector tests”
