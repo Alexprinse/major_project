@@ -1,0 +1,121 @@
+{
+    "type": "vehicle.lincoln.mkz_2017",
+    "id": "hero",
+
+    "vehicle_ros_publish_tf": true,
+    "vehicle_ros_frame_id": "base_link",
+    "sensor_ros_frame_id": "base_link",
+
+    "sensors": [
+
+        {
+            "type": "sensor.camera.rgb",
+            "id": "rgb_front",
+            "spawn_point": {"x": 1.5, "y": 0.0, "z": 2.0, "roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+            "attributes": {
+                "image_size_x": 1280,
+                "image_size_y": 720,
+                "fov": 90.0,
+                "ros_publish_tf": true
+            }
+        },
+
+        {
+            "type": "sensor.camera.depth",
+            "id": "depth_front",
+            "spawn_point": {"x": 1.5, "y": 0.0, "z": 2.0, "roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+            "attributes": {
+                "image_size_x": 1280,
+                "image_size_y": 720,
+                "fov": 90.0,
+                "ros_publish_tf": true
+            }
+        },
+
+        {
+            "type": "sensor.camera.semantic_segmentation",
+            "id": "semantic_segmentation_front",
+            "spawn_point": {"x": 1.5, "y": 0.0, "z": 2.0, "roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+            "attributes": {
+                "image_size_x": 1280,
+                "image_size_y": 720,
+                "fov": 90.0,
+                "ros_publish_tf": true
+            }
+        },
+
+        {
+            "type": "sensor.camera.rgb",
+            "id": "ego_view",
+            "spawn_point": {"x": -4.5, "y": 0.0, "z": 2.5, "roll": 0.0, "pitch": 15.0, "yaw": 0.0},
+            "attributes": {
+                "image_size_x": 1280,
+                "image_size_y": 720,
+                "fov": 100.0,
+                "ros_publish_tf": true
+            }
+        },
+
+        {
+            "type": "sensor.lidar.ray_cast",
+            "id": "lidar",
+            "spawn_point": {"x": 0.0, "y": 0.0, "z": 2.4, "roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+            "attributes": {
+                "range": 85,
+                "channels": 64,
+                "points_per_second": 600000,
+                "rotation_frequency": 20,
+                "upper_fov": 10,
+                "lower_fov": -30,
+                "ros_publish_tf": true
+            }
+        },
+
+        {
+            "type": "sensor.lidar.ray_cast_semantic",
+            "id": "semantic_lidar",
+            "spawn_point": {"x": 0.0, "y": 0.0, "z": 2.4, "roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+            "attributes": {
+                "range": 85,
+                "channels": 32,
+                "points_per_second": 320000,
+                "rotation_frequency": 20,
+                "upper_fov": 10,
+                "lower_fov": -30,
+                "ros_publish_tf": true
+            }
+        },
+
+        {
+            "type": "sensor.other.radar",
+            "id": "radar_front",
+            "spawn_point": {"x": 2.0, "y": 0.0, "z": 1.0, "roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+            "attributes": {
+                "horizontal_fov": 30.0,
+                "vertical_fov": 15.0,
+                "points_per_second": 1500,
+                "range": 100.0,
+                "ros_publish_tf": true
+            }
+        },
+
+        {
+            "type": "sensor.other.gnss",
+            "id": "gnss",
+            "spawn_point": {"x": 1.0, "y": 0.0, "z": 2.0, "roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+            "attributes": {
+                "ros_publish_tf": true
+            }
+        },
+
+        {
+            "type": "sensor.other.imu",
+            "id": "imu",
+            "spawn_point": {"x": 2.0, "y": 0.0, "z": 2.0, "roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+            "attributes": {
+                "ros_publish_tf": true
+            }
+        }
+
+    ]
+}
